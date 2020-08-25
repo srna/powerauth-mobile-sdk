@@ -24,7 +24,7 @@ Pod::Spec.new do |s|
 	}
 	
 	# Library validation & build
-	s.platform        = :ios, '8.0'
+	s.platform        = :ios, '9.0'
 	s.prepare_command = <<-CMD
 		./scripts/ios-extensions-build.sh --out-dir Build release ios
 	CMD
