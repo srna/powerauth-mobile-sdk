@@ -39,12 +39,15 @@ WOS_FRAMEWORK="PowerAuth2ForWatch"
 # IOS extension configuration
 EXT_SCHEME_PREFIX="PA2Ext"
 EXT_FRAMEWORK="PowerAuth2ForExtensions"
+EXT_FRAMEWORK_CATALYST="PowerAuth2ForExtensionsMacCatalyst"
 
 # Variables, will be set in params processing loop
 PLATFORM_SDK=""
-# PLATFORM_SDK2=""
+PLATFORM_SDK2=""
+PLATFORM_SDK3=""
 PLATFORM_SCHEME_PREFIX=""
 OUT_FRAMEWORK=""
+OUT_FRAMEWORK_CATALYST=""
 BUILD_TYPE="Release"
 VERBOSE=1
 OUT_DIR=""
@@ -100,16 +103,24 @@ function BUILD_COMMAND
 	if [ $VERBOSE -lt 2 ]; then
 		COMMAND_LINE+=" -quiet"
 	fi
-	COMMAND_LINE+=" -scheme ${SCHEME} -sdk ${PLATFORM}"
+	COMMAND_LINE+=" -scheme ${SCHEME}"
 	COMMAND_LINE+=" -derivedDataPath \""${TMP_DIR}/DerivedData\"""
 	COMMAND_LINE+=" BUILD_DIR=\"${BUILD_DIR}\" BUILD_ROOT=\"${BUILD_DIR}\" CODE_SIGNING_REQUIRED=NO"
 	COMMAND_LINE+=" ONLY_ACTIVE_ARCH=NO"
 	
+	ADDITIONAL_CFLAGS=""
+
 	# Add bitcode switch, depending on build type
 	if [ "${BUILD_TYPE}" == "Release" ]; then
-		COMMAND_LINE+=" OTHER_CFLAGS=-fembed-bitcode"
+		ADDITIONAL_CFLAGS+="-fembed-bitcode"
 	else
-		COMMAND_LINE+=" OTHER_CFLAGS=-fembed-bitcode-marker"
+		ADDITIONAL_CFLAGS+="-fembed-bitcode-marker"
+	fi
+
+	if [ x$PLATFORM == x$PLATFORM_SDK3 ]; then
+		COMMAND_LINE="$COMMAND_LINE -destination 'platform=macOS,variant=Mac Catalyst' OTHER_CFLAGS=\"-target x86_64-apple-ios13.0-macabi  -miphoneos-version-min=13.0\" OTHER_LDFLAGS=\"-target x86_64-apple-ios13.0-macabi -miphoneos-version-min=13.0\""
+	else
+		COMMAND_LINE="$COMMAND_LINE -sdk ${PLATFORM}"
 	fi
 	
 	# Complete & Execute command line
@@ -133,7 +144,7 @@ function MAKE_FAT_LIB
 {
 	local SCHEME=$1
 	local NAT_PLATFORM=$2
-	# local SIM_PLATFORM=$3
+	local SIM_PLATFORM=$3
 	local FW="${OUT_FRAMEWORK}.framework"
 	local LIB=${OUT_FRAMEWORK}
 	
@@ -141,18 +152,41 @@ function MAKE_FAT_LIB
 	LOG "FATalizing   ${FW}"
 	
 	local NAT_FW_DIR="${TMP_DIR}/${SCHEME}-${NAT_PLATFORM}/${BUILD_TYPE}-${NAT_PLATFORM}/${FW}"
-	# local SIM_FW_DIR="${TMP_DIR}/${SCHEME}-${SIM_PLATFORM}/${BUILD_TYPE}-${SIM_PLATFORM}/${FW}"
+	local SIM_FW_DIR="${TMP_DIR}/${SCHEME}-${SIM_PLATFORM}/${BUILD_TYPE}-${SIM_PLATFORM}/${FW}"
 	local FAT_FW_DIR="${TMP_DIR}/${SCHEME}/${FW}"
 	# copy ALL files from native framework to ${TMP_DIR}/${SCHEME} 
 	$MD "${TMP_DIR}/${SCHEME}"
 	$CP -r "${NAT_FW_DIR}" "${TMP_DIR}/${SCHEME}"
 	$RM "${FAT_FW_DIR}/${LIB}"
 	
-  	# ${LIPO} -create "${NAT_FW_DIR}/${LIB}" "${SIM_FW_DIR}/${LIB}" -output "${FAT_FW_DIR}/${LIB}"
-	${LIPO} -create "${NAT_FW_DIR}/${LIB}" -output "${FAT_FW_DIR}/${LIB}"
+  	${LIPO} -create "${NAT_FW_DIR}/${LIB}" "${SIM_FW_DIR}/${LIB}" -output "${FAT_FW_DIR}/${LIB}"
 	
 	LOG "Copying final framework..."
 	$CP -r "${FAT_FW_DIR}" "${OUT_DIR}"
+}
+
+function MAKE_FAT_LIB_CATALYST
+{
+	local SCHEME=$1
+	local PLATFORM=$2
+	local FW="${OUT_FRAMEWORK}.framework"
+	local LIB=${OUT_FRAMEWORK}
+	
+	LOG_LINE
+	LOG "FATalizing   ${FW}"
+	
+	local FW_DIR="${TMP_DIR}/${SCHEME}-${PLATFORM}/${BUILD_TYPE}-${PLATFORM}/${FW}"
+	local FAT_FW_DIR="${TMP_DIR}/${SCHEME}/${FW}"
+	# copy ALL files from native framework to ${TMP_DIR}/${SCHEME} 
+	$MD "${TMP_DIR}/${SCHEME}"
+	$CP -r "${FW_DIR}" "${TMP_DIR}/${SCHEME}"
+	$RM "${FAT_FW_DIR}/${LIB}"
+  	${LIPO} -create "${FW_DIR}/${LIB}" -output "${FAT_FW_DIR}/${LIB}"
+	
+	LOG "Copying final framework..."
+	$CP -r "${FAT_FW_DIR}" "${OUT_DIR}/${OUT_FRAMEWORK_CATALYST}.framework"
+	$CP "${OUT_DIR}/${OUT_FRAMEWORK_CATALYST}.framework/${OUT_FRAMEWORK}" "${OUT_DIR}/${OUT_FRAMEWORK_CATALYST}.framework/${OUT_FRAMEWORK_CATALYST}"
+	$RM "${OUT_DIR}/${OUT_FRAMEWORK_CATALYST}.framework/${OUT_FRAMEWORK}"
 }
 
 # -----------------------------------------------------------------------------
@@ -190,8 +224,19 @@ function BUILD_SCHEME
 	LOG "Compiling $SCHEME..."
 	LOG_LINE
 	BUILD_COMMAND ${SCHEME} ${PLATFORM} build
-	# BUILD_COMMAND ${SCHEME} ${SIM_PLATFORM} build
+	BUILD_COMMAND ${SCHEME} ${SIM_PLATFORM} build
 	MAKE_FAT_LIB ${SCHEME} ${PLATFORM} ${SIM_PLATFORM}
+}
+
+function BUILD_SCHEME_CATALYST
+{
+	local SCHEME=$1
+	local PLATFORM=$2
+	LOG_LINE
+	LOG "Compiling $SCHEME..."
+	LOG_LINE
+	BUILD_COMMAND ${SCHEME} ${PLATFORM} build
+	MAKE_FAT_LIB_CATALYST ${SCHEME} ${PLATFORM}
 }
 
 # -----------------------------------------------------------------------------
@@ -210,7 +255,7 @@ function CLEAN_SCHEME
 	LOG "Cleaning ${SCHEME}..."
 	LOG_LINE
 	BUILD_COMMAND ${SCHEME} ${PLATFORM} clean
-	# BUILD_COMMAND ${SCHEME} ${SIM_PLATFORM} clean
+	BUILD_COMMAND ${SCHEME} ${SIM_PLATFORM} clean
 }
 
 ###############################################################################
@@ -222,15 +267,17 @@ do
 	case "$opt" in
 		watchos)
 			PLATFORM_SDK='watchos'
-			# PLATFORM_SDK2='watchsimulator'
+			PLATFORM_SDK2='watchsimulator'
 			PLATFORM_SCHEME_PREFIX="${WOS_SCHEME_PREFIX}"
 			OUT_FRAMEWORK="${WOS_FRAMEWORK}"
 			;;
 		ios)
 			PLATFORM_SDK='iphoneos'
-			# PLATFORM_SDK2='iphonesimulator'
+			PLATFORM_SDK2='iphonesimulator'
+			PLATFORM_SDK3='maccatalyst'
 			PLATFORM_SCHEME_PREFIX="${EXT_SCHEME_PREFIX}"
 			OUT_FRAMEWORK="${EXT_FRAMEWORK}"
+			OUT_FRAMEWORK_CATALYST="${EXT_FRAMEWORK_CATALYST}"
 			;;
 		debug)
 			BUILD_TYPE="Debug"
@@ -307,7 +354,8 @@ $MD "${TMP_DIR}"
 # Build
 #
 #CLEAN_SCHEME ${PLATFORM_SCHEME} ${PLATFORM_SDK} ${PLATFORM_SDK2}
-BUILD_SCHEME ${PLATFORM_SCHEME} ${PLATFORM_SDK} #${PLATFORM_SDK2}
+BUILD_SCHEME ${PLATFORM_SCHEME} ${PLATFORM_SDK} ${PLATFORM_SDK2}
+[[ ! -z "$PLATFORM_SDK3" ]] && BUILD_SCHEME_CATALYST ${PLATFORM_SCHEME} ${PLATFORM_SDK3}
 
 #
 # Remove temporary data
