@@ -118,7 +118,7 @@ function BUILD_COMMAND
 	fi
 
 	if [ x$PLATFORM == x$PLATFORM_SDK3 ]; then
-		COMMAND_LINE="$COMMAND_LINE -destination 'platform=macOS,variant=Mac Catalyst' OTHER_CFLAGS=\"-target x86_64-apple-ios13.0-macabi  -miphoneos-version-min=13.0\" OTHER_LDFLAGS=\"-target x86_64-apple-ios13.0-macabi -miphoneos-version-min=13.0\""
+		COMMAND_LINE="$COMMAND_LINE -destination 'platform=macOS,variant=Mac Catalyst' OTHER_CFLAGS=\"-target x86_64-apple-ios13.0-macabi  -miphoneos-version-min=13.0\" OTHER_LDFLAGS=\"-target x86_64-apple-ios14.0-macabi -miphoneos-version-min=13.0\""
 	else
 		COMMAND_LINE="$COMMAND_LINE -sdk ${PLATFORM}"
 	fi
@@ -221,7 +221,7 @@ function BUILD_SCHEME
 	local PLATFORM=$2
 	local SIM_PLATFORM=$3
 	LOG_LINE
-	LOG "Compiling $SCHEME..."
+	LOG "Compiling $SCHEME / $PLATFORM ..."
 	LOG_LINE
 	BUILD_COMMAND ${SCHEME} ${PLATFORM} build
 	BUILD_COMMAND ${SCHEME} ${SIM_PLATFORM} build
@@ -233,7 +233,7 @@ function BUILD_SCHEME_CATALYST
 	local SCHEME=$1
 	local PLATFORM=$2
 	LOG_LINE
-	LOG "Compiling $SCHEME..."
+	LOG "Compiling Catalyst $SCHEME / $PLATFORM ..."
 	LOG_LINE
 	BUILD_COMMAND ${SCHEME} ${PLATFORM} build
 	MAKE_FAT_LIB_CATALYST ${SCHEME} ${PLATFORM}

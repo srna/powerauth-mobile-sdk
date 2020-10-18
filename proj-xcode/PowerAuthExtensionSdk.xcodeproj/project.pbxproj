@@ -669,6 +669,7 @@
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
+				"EXCLUDED_ARCHS[sdk=macosx*]" = arm64;
 				"EXCLUDED_ARCHS[sdk=watchsimulator*]" = arm64;
 				INFOPLIST_FILE = Extensions/IOS/Info.plist;
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
